@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import cors from "cors";
 import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
+import crypto from "crypto";
 
 const app = express();
 app.use(express.json());
@@ -16,16 +17,23 @@ const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const JWT_SECRET = process.env.JWT_SECRET;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
-// Supabase Server Client (full permissions)
+// Supabase Server Client
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
-// OpenAI client
+// OpenAI Client
 const openai = new OpenAI({
   apiKey: OPENAI_API_KEY,
 });
 
 // ----------------------
-// JWT Middleware
+// TEST ROUTE (IMPORTANT)
+// ----------------------
+app.get("/test", (req, res) => {
+  res.send("Backend Working Perfectly ✔");
+});
+
+// ----------------------
+// JWT AUTH MIDDLEWARE
 // ----------------------
 function auth(req, res, next) {
   const token = req.headers.authorization?.split(" ")[1];
@@ -41,26 +49,26 @@ function auth(req, res, next) {
 }
 
 // ----------------------
-// SIGNUP
+// SIGNUP (AUTO JWT)
 // ----------------------
 app.post("/signup", async (req, res) => {
   const { email } = req.body;
+  const userId = crypto.randomUUID();
 
-  const token = jwt.sign({ id: crypto.randomUUID(), email }, JWT_SECRET);
-  const userId = jwt.verify(token, JWT_SECRET).id;
+  const token = jwt.sign({ id: userId, email }, JWT_SECRET);
 
   await supabase.from("users").insert({ id: userId, email });
 
-  return res.json({ token });
+  return res.json({ token, userId });
 });
 
 // ----------------------
-// ADD EXPENSE (AI category)
+// ADD EXPENSE (MAIN ROUTE)
 // ----------------------
 app.post("/expense", auth, async (req, res) => {
   const { amount, description } = req.body;
 
-  // ---------- AI Category ----------
+  // ---------- AI CATEGORY DETECTION ----------
   const ai = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     messages: [
@@ -69,9 +77,9 @@ app.post("/expense", auth, async (req, res) => {
     ]
   });
 
-  const category = ai.choices[0].message.content;
+  const category = ai.choices[0].message.content.trim();
 
-  // ---------- Insert ----------
+  // ---------- SAVE EXPENSE ----------
   const { data, error } = await supabase
     .from("expenses")
     .insert({
@@ -85,11 +93,31 @@ app.post("/expense", auth, async (req, res) => {
 
   if (error) return res.status(400).json({ error });
 
-  res.json({ message: "Expense Added", data });
+  res.json({ message: "Expense Added ✔", data });
+});
+
+// ---------------------------------------
+// ALTERNATE ROUTE: /add-expense (for Hoppscotch)
+// ---------------------------------------
+app.post("/add-expense", auth, async (req, res) => {
+  const { amount, description, category, user_id } = req.body;
+
+  const { data, error } = await supabase
+    .from("expenses")
+    .insert({
+      user_id: user_id || req.user.id,
+      amount,
+      description,
+      category: category || "Other",
+    });
+
+  if (error) return res.status(400).json({ error });
+
+  res.json({ success: true, data });
 });
 
 // ----------------------
-// GET EXPENSES LIST
+// GET EXPENSE LIST
 // ----------------------
 app.get("/expenses", auth, async (req, res) => {
   const { data, error } = await supabase
@@ -117,7 +145,7 @@ app.delete("/expense/:id", auth, async (req, res) => {
 
   if (error) return res.status(400).json({ error });
 
-  res.json({ message: "Deleted" });
+  res.json({ message: "Deleted ✔" });
 });
 
 // ----------------------
