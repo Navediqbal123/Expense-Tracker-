@@ -1,0 +1,14 @@
+{
+  "name": "expense-backend",
+  "type": "module",
+  "dependencies": {
+    "express": "^4.19.2",
+    "cors": "^2.8.5",
+    "jsonwebtoken": "^9.0.2",
+    "@supabase/supabase-js": "^2.39.0",
+    "openai": "^4.0.0"
+  },
+  "scripts": {
+    "start": "node server.js"
+  }
+}
