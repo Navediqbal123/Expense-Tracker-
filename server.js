@@ -7,7 +7,17 @@ import crypto from "crypto";
 
 const app = express();
 app.use(express.json());
-app.use(cors());
+
+// ----------------------
+// CORS FIX (IMPORTANT)
+// ----------------------
+app.use(
+  cors({
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
 
 // ----------------------
 // ENV VARIABLES
@@ -26,7 +36,14 @@ const openai = new OpenAI({
 });
 
 // ----------------------
-// TEST ROUTE (IMPORTANT)
+// ROOT ROUTE (FIXED)
+// ----------------------
+app.get("/", (req, res) => {
+  res.send("Backend Working ✔ Root OK");
+});
+
+// ----------------------
+// TEST ROUTE
 // ----------------------
 app.get("/test", (req, res) => {
   res.send("Backend Working Perfectly ✔");
@@ -63,7 +80,7 @@ app.post("/signup", async (req, res) => {
 });
 
 // ----------------------
-// ADD EXPENSE (MAIN ROUTE)
+// ADD EXPENSE (AI CATEGORY)
 // ----------------------
 app.post("/expense", auth, async (req, res) => {
   const { amount, description } = req.body;
@@ -72,9 +89,13 @@ app.post("/expense", auth, async (req, res) => {
   const ai = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     messages: [
-      { role: "system", content: "Categorize the expense as Food/Shopping/Bills/Other" },
-      { role: "user", content: description }
-    ]
+      {
+        role: "system",
+        content:
+          "Categorize the expense as Food, Shopping, Bills or Other ONLY.",
+      },
+      { role: "user", content: description },
+    ],
   });
 
   const category = ai.choices[0].message.content.trim();
@@ -87,17 +108,22 @@ app.post("/expense", auth, async (req, res) => {
       amount,
       description,
       category,
+      currency: "INR", // ★ Always INR
+      currency_symbol: "₹", // ★ Fix for frontend display
     })
     .select("*")
     .single();
 
   if (error) return res.status(400).json({ error });
 
-  res.json({ message: "Expense Added ✔", data });
+  res.json({
+    message: "Expense Added ✔",
+    data,
+  });
 });
 
 // ---------------------------------------
-// ALTERNATE ROUTE: /add-expense (for Hoppscotch)
+// EXTRA ROUTE: ADD EXPENSE MANUAL
 // ---------------------------------------
 app.post("/add-expense", auth, async (req, res) => {
   const { amount, description, category, user_id } = req.body;
@@ -109,6 +135,8 @@ app.post("/add-expense", auth, async (req, res) => {
       amount,
       description,
       category: category || "Other",
+      currency: "INR",
+      currency_symbol: "₹",
     });
 
   if (error) return res.status(400).json({ error });
