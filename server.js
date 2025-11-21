@@ -36,7 +36,7 @@ const openai = new OpenAI({
 });
 
 // ----------------------
-// ROOT ROUTE (FIXED)
+// ROOT ROUTE
 // ----------------------
 app.get("/", (req, res) => {
   res.send("Backend Working ✔ Root OK");
@@ -66,7 +66,7 @@ function auth(req, res, next) {
 }
 
 // ----------------------
-// SIGNUP (AUTO JWT)
+// SIGNUP
 // ----------------------
 app.post("/signup", async (req, res) => {
   const { email } = req.body;
@@ -85,7 +85,6 @@ app.post("/signup", async (req, res) => {
 app.post("/expense", auth, async (req, res) => {
   const { amount, description } = req.body;
 
-  // ---------- AI CATEGORY DETECTION ----------
   const ai = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     messages: [
@@ -100,7 +99,6 @@ app.post("/expense", auth, async (req, res) => {
 
   const category = ai.choices[0].message.content.trim();
 
-  // ---------- SAVE EXPENSE ----------
   const { data, error } = await supabase
     .from("expenses")
     .insert({
@@ -108,8 +106,6 @@ app.post("/expense", auth, async (req, res) => {
       amount,
       description,
       category,
-      currency: "INR", // ★ Always INR
-      currency_symbol: "₹", // ★ Fix for frontend display
     })
     .select("*")
     .single();
@@ -122,22 +118,18 @@ app.post("/expense", auth, async (req, res) => {
   });
 });
 
-// ---------------------------------------
-// EXTRA ROUTE: ADD EXPENSE MANUAL
-// ---------------------------------------
+// ----------------------
+// MANUAL ADD EXPENSE
+// ----------------------
 app.post("/add-expense", auth, async (req, res) => {
   const { amount, description, category, user_id } = req.body;
 
-  const { data, error } = await supabase
-    .from("expenses")
-    .insert({
-      user_id: user_id || req.user.id,
-      amount,
-      description,
-      category: category || "Other",
-      currency: "INR",
-      currency_symbol: "₹",
-    });
+  const { data, error } = await supabase.from("expenses").insert({
+    user_id: user_id || req.user.id,
+    amount,
+    description,
+    category: category || "Other",
+  });
 
   if (error) return res.status(400).json({ error });
 
